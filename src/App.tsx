@@ -1,5 +1,7 @@
-import logo from "./assets/logo.png";
 import { useEffect, useState } from "react";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import logo from "./assets/logo.png";
 import "./App.css";
 
 export default function App() {
@@ -7,10 +9,6 @@ export default function App() {
     const kayitliVeri = localStorage.getItem("binaTuruKayitlari");
     return kayitliVeri ? JSON.parse(kayitliVeri) : [];
   });
-
-  useEffect(() => {
-    localStorage.setItem("binaTuruKayitlari", JSON.stringify(kayitlar));
-  }, [kayitlar]);
 
   const [form, setForm] = useState({
     bina: "",
@@ -20,6 +18,10 @@ export default function App() {
     not: "",
     fotograf: null as string | null,
   });
+
+  useEffect(() => {
+    localStorage.setItem("binaTuruKayitlari", JSON.stringify(kayitlar));
+  }, [kayitlar]);
 
   function alanDegistir(e: any) {
     const { name, value } = e.target;
@@ -38,19 +40,24 @@ export default function App() {
   }
 
   function kayitEkle() {
-    if (!form.bina || !form.bolum || !form.not) {
-      alert("Bina, bölüm ve not zorunludur!");
+    if (!form.bina || !form.kat || !form.bolum || !form.not) {
+      alert("Bina, kat, bölüm ve not alanları zorunludur!");
       return;
     }
 
     const yeniKayit = {
       id: Date.now(),
-      ...form,
+      bina: form.bina,
+      kat: form.kat,
+      bolum: form.bolum,
+      kategori: form.kategori,
+      not: form.not,
+      fotograf: form.fotograf,
       durum: "acik",
       tarih: new Date().toLocaleString("tr-TR"),
     };
 
-    setKayitlar([yeniKayit, ...kayitlar]);
+    setKayitlar((oncekiKayitlar) => [yeniKayit, ...oncekiKayitlar]);
 
     setForm({
       bina: "",
@@ -63,36 +70,84 @@ export default function App() {
   }
 
   function kayitSil(id: number) {
-    setKayitlar(kayitlar.filter((k) => k.id !== id));
+    setKayitlar((oncekiKayitlar) =>
+      oncekiKayitlar.filter((kayit) => kayit.id !== id)
+    );
   }
 
   function kayitKapat(id: number) {
-    setKayitlar(
-      kayitlar.map((k) =>
-        k.id === id ? { ...k, durum: "kapali" } : k
+    setKayitlar((oncekiKayitlar) =>
+      oncekiKayitlar.map((kayit) =>
+        kayit.id === id ? { ...kayit, durum: "kapali" } : kayit
       )
     );
   }
 
-  const acikSayisi = kayitlar.filter((k) => k.durum === "acik").length;
-  const kapaliSayisi = kayitlar.filter((k) => k.durum === "kapali").length;
+  function excelIndir() {
+    const veri = kayitlar.map((kayit) => ({
+      Bina: kayit.bina,
+      Kat: kayit.kat,
+      Bölüm: kayit.bolum,
+      Kategori: kayit.kategori,
+      Durum: kayit.durum === "kapali" ? "Kapatıldı" : "Açık",
+      Tespit: kayit.not,
+      Tarih: kayit.tarih,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(veri);
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Bina Turu");
+
+    const excelBuffer = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "array",
+    });
+
+    const blob = new Blob([excelBuffer], {
+      type: "application/octet-stream",
+    });
+
+    saveAs(blob, "bina_turu_rapor.xlsx");
+  }
+
+  const acikSayisi = kayitlar.filter((kayit) => kayit.durum === "acik").length;
+  const kapaliSayisi = kayitlar.filter((kayit) => kayit.durum === "kapali").length;
 
   return (
     <div className="container">
       <div className="baslik">
-      <div className="baslikUst">
-  <img src={logo} alt="logo" className="logo" />
-  <h1>Hastane Bina Turu</h1>
-</div>
+        <div className="baslikUst">
+          <img src={logo} alt="Hastane logosu" className="logo" />
+          <h1>Hastane Bina Turu</h1>
+        </div>
         <h2>ESKİŞEHİR YUNUS EMRE DEVLET HASTANESİ</h2>
       </div>
 
+      <button
+  type="button"
+  className="excelButonu"
+  onClick={excelIndir}
+>
+  EXCEL RAPORU INDIR
+</button>
+
       <div className="ozet">
-      <div className="binaOzet">
-  <p><strong>ANA BİNA:</strong> {kayitlar.filter(k => k.bina === "ANA BİNA").length}</p>
-  <p><strong>2 EYLÜL EK HİZMET BİNASI:</strong> {kayitlar.filter(k => k.bina === "2 EYLÜL EK HİZMET BİNASI").length}</p>
-  <p><strong>ERİŞKİN ARINDIRMA MERKEZİ:</strong> {kayitlar.filter(k => k.bina === "ERİŞKİN ARINDIRMA MERKEZİ").length}</p>
-</div>
+        <div className="binaOzet">
+          <p>
+            <strong>ANA BİNA:</strong>{" "}
+            {kayitlar.filter((k) => k.bina === "ANA BİNA").length}
+          </p>
+          <p>
+            <strong>2 EYLÜL EK HİZMET BİNASI:</strong>{" "}
+            {kayitlar.filter((k) => k.bina === "2 EYLÜL EK HİZMET BİNASI").length}
+          </p>
+          <p>
+            <strong>ERİŞKİN ARINDIRMA MERKEZİ:</strong>{" "}
+            {kayitlar.filter((k) => k.bina === "ERİŞKİN ARINDIRMA MERKEZİ").length}
+          </p>
+        </div>
+
         <div className="kutu">
           <p>📊</p>
           <p>Toplam</p>
@@ -113,66 +168,114 @@ export default function App() {
       </div>
 
       <div className="form">
-      <select name="bina" value={form.bina} onChange={alanDegistir}>
-  <option value="">Bina Seçiniz</option>
-  <option>ANA BİNA</option>
-  <option>2 EYLÜL EK HİZMET BİNASI</option>
-  <option>ERİŞKİN ARINDIRMA MERKEZİ</option>
-</select>
-<select name="kat" value={form.kat} onChange={alanDegistir}>
-  <option value="">Kat Seçiniz</option>
-  <option>BODRUM KAT</option>
-  <option>ALT ZEMİN KAT</option>
-  <option>ZEMİN KAT</option>
-  <option>1. KAT</option>
-  <option>2. KAT</option>
-  <option>3. KAT</option>
-  <option>4. KAT</option>
-  <option>5. KAT</option>
-</select>
-        <input name="bolum" placeholder="Bölüm" value={form.bolum} onChange={alanDegistir} />
+        <select name="bina" value={form.bina} onChange={alanDegistir}>
+          <option value="">Bina Seçiniz</option>
+          <option>ANA BİNA</option>
+          <option>2 EYLÜL EK HİZMET BİNASI</option>
+          <option>ERİŞKİN ARINDIRMA MERKEZİ</option>
+        </select>
+
+        <select name="kat" value={form.kat} onChange={alanDegistir}>
+          <option value="">Kat Seçiniz</option>
+          <option>BODRUM KAT</option>
+          <option>ALT ZEMİN KAT</option>
+          <option>ZEMİN KAT</option>
+          <option>1. KAT</option>
+          <option>2. KAT</option>
+          <option>3. KAT</option>
+          <option>4. KAT</option>
+          <option>5. KAT</option>
+        </select>
+
+        <input
+          name="bolum"
+          placeholder="Bölüm / Alan"
+          value={form.bolum}
+          onChange={alanDegistir}
+        />
 
         <select name="kategori" value={form.kategori} onChange={alanDegistir}>
           <option>Yangın Güvenliği</option>
           <option>Elektrik</option>
           <option>Acil Çıkış</option>
           <option>Ergonomi</option>
+          <option>Genel Düzen</option>
+          <option>Diğer</option>
         </select>
 
-        <textarea name="not" placeholder="Tespit..." value={form.not} onChange={alanDegistir} />
+        <textarea
+          name="not"
+          placeholder="Tespit..."
+          value={form.not}
+          onChange={alanDegistir}
+        />
 
         <input
-  type="file"
-  accept="image/*"
-  capture="environment"
-  onChange={fotografSec}
-/>
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={fotografSec}
+        />
 
         {form.fotograf && (
           <img src={form.fotograf} className="preview" alt="Ön izleme" />
         )}
 
-        <button onClick={kayitEkle}>Kaydı Ekle</button>
+<div style={{ display: "flex", gap: "10px", justifyContent: "center", marginTop: "15px" }}>
+  <button onClick={kayitEkle}>
+    Kaydı Ekle
+  </button>
+
+  <button
+    type="button"
+    onClick={excelIndir}
+    style={{
+      backgroundColor: "red",
+      color: "white",
+      padding: "12px 18px",
+      fontWeight: "bold",
+      border: "3px solid black"
+    }}
+  >
+    EXCEL INDIR
+  </button>
+</div>
       </div>
 
       <div className="liste">
-        {kayitlar.map((k) => (
-          <div key={k.id} className={`kart ${k.durum === "kapali" ? "kapaliKart" : ""}`}>
-            <b>{k.bina} - {k.bolum}</b>
-            <p><strong>Durum:</strong> {k.durum === "kapali" ? "Kapatıldı" : "Açık"}</p>
-            <p><strong>Kategori:</strong> {k.kategori}</p>
-<p><strong>Tespit:</strong> {k.not}</p>
-<small>{k.tarih}</small>
+        {kayitlar.map((kayit) => (
+          <div
+            key={kayit.id}
+            className={`kart ${kayit.durum === "kapali" ? "kapaliKart" : ""}`}
+          >
+            <b>
+              {kayit.bina} - {kayit.kat} - {kayit.bolum}
+            </b>
 
-            {k.fotograf && (
-              <img src={k.fotograf} alt="Tespit fotoğrafı" />
+            <p>
+              <strong>Durum:</strong>{" "}
+              {kayit.durum === "kapali" ? "Kapatıldı" : "Açık"}
+            </p>
+
+            <p>
+              <strong>Kategori:</strong> {kayit.kategori}
+            </p>
+
+            <p>
+              <strong>Tespit:</strong> {kayit.not}
+            </p>
+
+            <small>{kayit.tarih}</small>
+
+            {kayit.fotograf && (
+              <img src={kayit.fotograf} alt="Tespit fotoğrafı" />
             )}
 
-            {k.durum !== "kapali" && (
-              <button onClick={() => kayitKapat(k.id)}>Kapat</button>
+            {kayit.durum !== "kapali" && (
+              <button onClick={() => kayitKapat(kayit.id)}>Kapat</button>
             )}
 
-            <button onClick={() => kayitSil(k.id)}>Sil</button>
+            <button onClick={() => kayitSil(kayit.id)}>Sil</button>
           </div>
         ))}
       </div>
